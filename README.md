@@ -1,5 +1,3 @@
-## **1. Overview**
-
 ### Problem Statement
 Managing and searching emails is inefficient, especially for professionals dealing with high email volumes. This project leverages **Retrieval-Augmented Generation (RAG)** to improve email search, summarization, and response generation.
 
@@ -7,8 +5,3 @@ Managing and searching emails is inefficient, especially for professionals deali
 - **Email Search** – Find relevant emails using AI-powered retrieval (LLama3.3).
 - **Summarization** – Generate summaries of many email threads.
 - **Automated Responses** – Suggest context-aware replies if ever need to.
-
-### Target Users
-- Professionals managing high email volumes.
-- Teams needing quick insights from email archives.
-- Anyone using Outlook for business communication.
