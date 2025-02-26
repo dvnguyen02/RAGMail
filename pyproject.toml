@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "ragmail"
+version = "0.1.0"
+description = "a project leverages Retrieval-Augmented Generation (RAG) to improve email search, summarization, and response generation"
+authors = ["dvnguyen02 <duynguyen290502@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fast = "api"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
