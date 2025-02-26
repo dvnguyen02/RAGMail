@@ -1,0 +1,1 @@
+"""Email document storage"""
