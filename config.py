@@ -40,9 +40,12 @@ class Config:
 
     @classmethod
 
-    def validate_connection(cls):
+    def validate_connection(cls) -> None:
         """Validate the connection to the email servers"""
         if not (cls.GMAIL_USERNAME and cls.GMAIL_PASSWORD) and not (cls.OUTLOOK_USERNAME and cls.OUTLOOK_PASSWORD):
             print("No emails credentials found in the environment variables")
         if not cls.OPENAI_API_KEY:
             print("No OpenAI API key found in the environment variables")
+
+# Validate the connection
+Config.validate_connection()
