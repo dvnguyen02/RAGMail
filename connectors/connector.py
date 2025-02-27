@@ -118,7 +118,7 @@ def get_emails(connection, limit) -> dict:
 
     return emails
 def decode_email_header(header) -> str:
-    """TODO 
+    """ 
     Decode email header from bytes to string
     
     Params: 
