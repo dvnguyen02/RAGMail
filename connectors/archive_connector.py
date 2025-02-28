@@ -38,7 +38,7 @@ def close_connection(connection) -> None:
 
 
 def get_emails(connection, limit) -> dict:
-    """TODO: Get emails from the inbox
+    """Get emails from the inbox
     
     Params:
         connection: IMAP Object

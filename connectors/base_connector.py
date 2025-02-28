@@ -34,12 +34,9 @@ class BaseConnector(ABC):
         """
 
     @abstractmethod
-    def close(self, connection: object) -> None:
+    def close(self, connection: object) -> bool:
         """
-        Close the connection to the email service
-
-        Params: 
-            connection (object): The connection object returned by the connect method
+        Safely terminates the established connection to the email service.
         """
         pass
 
