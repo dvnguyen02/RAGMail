@@ -71,7 +71,8 @@ def main():
             with open('sample_processed_email.json', 'w') as f:
                 # Convert datetime objects to strings for serialization
                 sample_email = processed_emails[0]
-                json.dump(sample_email, f, indent=2)
+                with open("json_test/sample_processed_email.json", "w") as f:
+                    json.dump(sample_email, f, indent=2)
             
             print("\nSaved sample processed email to sample_processed_email.json")
     

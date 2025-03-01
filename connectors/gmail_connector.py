@@ -52,11 +52,11 @@ class GmailConnector(BaseConnector):
         Returns: 
             List[Dict[str, Any]]: A list of email messages dictionary. 
                 Each email message dictionary contains keys such as: 
-                - 'subject': Email subject
-                - 'from': Email sender
+                - 'Subject': Email subject
+                - 'From': Email sender
                 - 'to': Email recipient
-                - 'date': Email date
-                - 'body': Email body
+                - 'Date': Email date
+                - 'Body': Email body
         """
         emails = [] # List to store emails
         try: 
