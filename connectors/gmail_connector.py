@@ -1,7 +1,7 @@
 import imaplib
 import email
 from email.header import decode_header
-from base_connector import BaseConnector
+from .base_connector import BaseConnector
 from typing import List, Dict, Any
 class GmailConnector(BaseConnector):
     """
