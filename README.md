@@ -1,7 +1,22 @@
-### Problem Statement
-Managing and searching emails is inefficient, especially for professionals dealing with high email volumes. This project leverages **Retrieval-Augmented Generation (RAG)** to improve email search, summarization, and response generation.
+# RAGMail: Email Management with RAG
 
-### Solution
-- **Email Search** – Find relevant emails using AI-powered retrieval (LLama3.3).
-- **Summarization** – Generate summaries of many email threads.
-- **Automated Responses** – Suggest context-aware replies if ever need to.
+![Python Version](https://img.shields.io/badge/python-3.12-blue)
+![Status](https://img.shields.io/badge/status-development-orange)
+
+## Overview
+
+RAGMail is an intelligent email management system that uses **Retrieval-Augmented Generation (RAG)** to enhance email search, summarization, and response generation. It addresses the inefficiency of managing large volumes of emails by leveraging AI to provide contextually relevant information and responses.
+
+# Architecture
+
+RAGMail is built with a modular, scalable architecture:
+
+```
+RAGMail/
+├── connectors/         # Email service connectors (Gmail, etc.)
+├── processors/         # Email processing and cleaning
+├── storage/            # Document and vector stores
+├── function/           # Core functionality (search, summarize)
+├── tests/              # Testing modules
+└── app.py              # Main application entry point
+```
