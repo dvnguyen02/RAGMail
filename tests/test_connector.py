@@ -2,7 +2,6 @@ import os
 import sys
 from dotenv import load_dotenv
 
-# Add the project root directory to the Python path so we can import our modules
 # This is the critical fix - we need to add the parent directory of the 'tests' folder
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
 
