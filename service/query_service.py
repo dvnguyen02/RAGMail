@@ -1,9 +1,9 @@
 from typing import Dict, Any, List, Tuple, Optional
 import logging
 
-from RAGMail.processors.embedding_processor import EmbeddingProcessor
-from RAGMail.storage.document_store import DocumentStore
-from RAGMail.storage.vector_store import VectorStore
+from processors.embedding_processor import EmbeddingProcessor
+from storage.document_store import DocumentStore
+from storage.vector_store import VectorStore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
