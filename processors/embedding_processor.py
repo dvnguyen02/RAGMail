@@ -1,5 +1,4 @@
 """Vector embedding generation and storage in FAISS index."""
-# RAGMail/processors/embedding_processor.py
 import numpy as np
 from typing import Dict, Any, List, Optional
 import logging

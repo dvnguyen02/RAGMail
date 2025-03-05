@@ -31,15 +31,14 @@ class Config:
     STORAGE_PATH = os.getenv("STORAGE_PATH")
 
     # CHATGPT model settings
-    DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K"), 5)
-    DEFAULT_TOP_P = float(os.getenv("DEFAULT_TOP_P"), 0.9)
-    DEFAULT_TEMPERATURE = float(os.getenv("DEFAULT_TEMPERATURE"), 0.6)
+    DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", "5"))
+    DEFAULT_TOP_P = float(os.getenv("DEFAULT_TOP_P", "0.9"))
+    DEFAULT_TEMPERATURE = float(os.getenv("DEFAULT_TEMPERATURE", "0.6"))
 
     # App settings
-    DEFAULT_DAY_BACKS = int(os.getenv("DEFAULT_DAY_BACKS"), 30)
+    DEFAULT_DAY_BACKS = int(os.getenv("DEFAULT_DAY_BACKS", "30"))
 
     @classmethod
-
     def validate_connection(cls) -> None:
         """Validate the connection to the email servers"""
         if not (cls.GMAIL_USERNAME and cls.GMAIL_PASSWORD) and not (cls.OUTLOOK_USERNAME and cls.OUTLOOK_PASSWORD):
