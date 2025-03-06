@@ -3,7 +3,6 @@ import sys
 import json
 import numpy as np
 import shutil
-from dotenv import load_dotenv
 
 # Add the parent directory to the Python path so we can import our module
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))

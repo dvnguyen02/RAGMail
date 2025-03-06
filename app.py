@@ -22,7 +22,7 @@ from processors.email_processor import EmailProcessor
 from processors.embedding_processor import EmbeddingProcessor
 from storage.document_store import DocumentStore
 from storage.vector_store import VectorStore
-from services.query_service import QueryService
+from service.query_service import QueryService
 from config import Config
 
 # Configure logging
@@ -44,42 +44,43 @@ class RAGMailApp:
         logger.info("Initializing RAGMail application")
         
         # Load environment variables
-        load_dotenv()
+        load_dotenv(override=True)
         
         # Initialize components
-        self.initialize_components()
-        
-        # Application state
-        self.is_initialized = False
+        try:
+            self.initialize_components()
+            self.is_initialized = True
+        except Exception as e:
+            logger.error(f"Failed to initialize RAGMail application: {str(e)}")
+            self.is_initialized = False
     
     def initialize_components(self):
         """Initialize all components of the RAGMail system."""
-        try:
-            # Initialize storage components
-            storage_path = Config.STORAGE_PATH or "ragmail_data"
-            self.document_store = DocumentStore(storage_dir=os.path.join(storage_path, "email_data"))
-            self.vector_store = VectorStore(storage_dir=os.path.join(storage_path, "vector_data"))
-            
-            # Initialize processors
-            self.email_processor = EmailProcessor()
-            self.embedding_processor = EmbeddingProcessor(model_name=Config.EMBEDDING_MODEL or "all-MiniLM-L6-v2")
-            
-            # Initialize query service
-            self.query_service = QueryService(
-                document_store=self.document_store,
-                vector_store=self.vector_store,
-                embedding_processor=self.embedding_processor
-            )
-            
-            # Initialize email connectors (on demand)
-            self.gmail_connector = None
-            
-            self.is_initialized = True
-            logger.info("RAGMail components initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Error initializing RAGMail components: {str(e)}")
-            self.is_initialized = False
+        # Create storage directories if needed
+        storage_path = Config.STORAGE_PATH or "ragmail_data"
+        email_data_dir = os.path.join(storage_path, "email_data")
+        vector_data_dir = os.path.join(storage_path, "vector_data")
+        
+        # Initialize storage components
+        self.document_store = DocumentStore(storage_dir=email_data_dir)
+        self.vector_store = VectorStore(storage_dir=vector_data_dir)
+        
+        # Initialize processors
+        self.email_processor = EmailProcessor()
+        embedding_model = Config.EMBEDDING_MODEL or "all-MiniLM-L6-v2"
+        self.embedding_processor = EmbeddingProcessor(model_name=embedding_model)
+        
+        # Initialize query service
+        self.query_service = QueryService(
+            document_store=self.document_store,
+            vector_store=self.vector_store,
+            embedding_processor=self.embedding_processor
+        )
+        
+        # Initialize email connectors (on demand)
+        self.gmail_connector = None
+        
+        logger.info("RAGMail components initialized successfully")
     
     def connect_to_gmail(self) -> bool:
         """Connect to Gmail using credentials from the config."""
@@ -134,7 +135,7 @@ class RAGMailApp:
                 if "id" not in raw_email:
                     # Use a hash of subject, date, and from as ID
                     id_source = f"{raw_email.get('Subject', '')}-{raw_email.get('Date', '')}-{raw_email.get('From', '')}"
-                    raw_email["id"] = f"email_{hash(id_source) % 10000000:07d}"
+                    raw_email["id"] = f"email_{abs(hash(id_source)) % 10000000:07d}"
                 
                 # Process email
                 processed = self.email_processor.process_email(raw_email)

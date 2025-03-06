@@ -10,7 +10,7 @@ from connectors import GmailConnector
 
 def main():
     # Load environment variables
-    load_dotenv()
+    load_dotenv(override=True)
     
     # Get credentials
     username = os.getenv('GMAIL_USERNAME')

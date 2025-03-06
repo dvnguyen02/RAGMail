@@ -3,6 +3,7 @@ import email
 from email.header import decode_header
 from .base_connector import BaseConnector
 from typing import List, Dict, Any
+
 class GmailConnector(BaseConnector):
     """
     Connector for gmail service
@@ -22,27 +23,42 @@ class GmailConnector(BaseConnector):
         """
         try: 
             # Connect to Gmail's IMAP server
+            print(f"Connecting to Gmail as {self.username}...")
             self.connection = imaplib.IMAP4_SSL("imap.gmail.com")
+            
             # Login to Gmail
+            print("Attempting login...")
             self.connection.login(self.username, self.password) 
-            print ("Sucessfully logged in to email account")
+            print("Successfully logged in to email account")
             return True
-        except Exception as e: 
-            print ("Error connecting to Gmail: ", e)
+        except imaplib.IMAP4.error as e:
+            print(f"IMAP4 Error connecting to Gmail: {e}")
             return False
+        except Exception as e: 
+            print(f"Error connecting to Gmail: {e}")
+            return False
+
     def close(self) -> None: 
         """
         Safely terminates the established connection to the email service
         """
         try: 
             if self.connection: 
-                self.connection.close()
-                self.connection.logout()
-                print ("Disconnected from email account")
+                try:
+                    self.connection.close()
+                except Exception as e:
+                    print(f"Error closing connection: {e}")
+                    
+                try:
+                    self.connection.logout()
+                    print("Disconnected from email account")
+                except Exception as e:
+                    print(f"Error logging out: {e}")
         except Exception as e: 
-            print("Error disconnecting from Gmail: ", e)
+            print(f"Error disconnecting from Gmail: {e}")
         finally:
             self.connection = None
+
     def get_emails(self, limit: int) -> List[Dict[str, Any]]:
         """
         Get emails from the inbox
@@ -61,47 +77,61 @@ class GmailConnector(BaseConnector):
         emails = [] # List to store emails
         try: 
             # Connect to the inbox
-            self.connection.select("INBOX")
+            print("Selecting INBOX...")
+            status, mailbox_data = self.connection.select("INBOX")
+            if status != "OK":
+                print(f"Error selecting INBOX: {status}")
+                return emails
+                
             # Search for emails
-            status, data = self.connection.search(None,"All")
+            print("Searching for emails...")
+            status, data = self.connection.search(None, "ALL")  # Fixed: "All" -> "ALL"
 
             if status != "OK":
-                print("Error searching Inbox")
+                print(f"Error searching Inbox: {status}")
                 return emails
             else: 
-                print ("Emails found")
+                email_count = len(data[0].split())
+                print(f"Found {email_count} emails in inbox")
             
             # Get the list of email IDs
             email_ids = data[0].split()
+            if not email_ids:
+                print("No emails found in mailbox")
+                return emails
 
-            # # Get the most recent emails (last N emails)
+            # Get the most recent emails (last N emails)
             if limit < len(email_ids):
                 recent_ids = email_ids[-limit:]
             else: 
                 recent_ids = email_ids
 
+            print(f"Fetching {len(recent_ids)} emails...")
+            
             # Fetch each email
             for id in recent_ids: 
+                print(f"Fetching email ID: {id}")
                 status, data = self.connection.fetch(id, "(RFC822)")
                 # RFC822 is Requests to the entire raw email
 
                 if status != "OK":
-                    print("Error fetching email with email ID {id}")
+                    print(f"Error fetching email with ID {id}: {status}")
                     continue
                 
                 # Parse the email data
-                raw_email = data[0][1] # This is raw email data (in bytes) so it needs to be decoded
+                raw_email = data[0][1]  # This is raw email data (in bytes) so it needs to be decoded
                 msg = email.message_from_bytes(raw_email)
 
                 # Decode the email msg
                 subject = self.decode_email_header(msg["Subject"]) 
                 sender = self.decode_email_header(msg["From"])
                 date = msg["Date"]
+                print(f"Processing email: '{subject}' from {sender}")
 
                 # Extract email body
                 body = ""
 
-                if msg.is_multipart(): # https://docs.python.org/3/library/email.message.html
+                if msg.is_multipart(): 
                     # if email has multiple parts, then just get the text
                     for part in msg.walk():
                         content_type = part.get_content_type()
@@ -109,25 +139,36 @@ class GmailConnector(BaseConnector):
                             try: 
                                 body = part.get_payload(decode=True).decode()
                                 break # Just get the first text or plain part
-                            except: 
+                            except Exception as e: 
+                                print(f"Error decoding part: {e}")
                                 pass           
                 else: 
                     # If email does not have multiple parts, then just get the email body
                     try: 
                         body = msg.get_payload(decode=True).decode()
-                    except: 
+                    except Exception as e: 
+                        print(f"Error decoding body: {e}")
                         body = "Unable to decode email body"
+                
                 email_dict = {
-                        "Subject": subject,
-                        "From": sender,
-                        "Date": date,
-                        "Body": body
+                    "id": id.decode(),
+                    "Subject": subject,
+                    "From": sender,
+                    "Date": date,
+                    "Body": body
                 }
 
                 emails.append(email_dict)
-                return emails
+            
+            # This return statement was incorrectly indented in your original code
+            # It should be outside the loop but inside the try block
+            print(f"Successfully retrieved {len(emails)} emails")
+            return emails
+            
         except Exception as e: 
-            print("Error fetching emails: ", e)
+            print(f"Error fetching emails: {e}")
+            import traceback
+            traceback.print_exc()
             return emails
 
     def decode_email_header(self, header) -> str:
@@ -145,15 +186,20 @@ class GmailConnector(BaseConnector):
         
         try: 
             decoded_parts = []
-            for part, encoding in decode_header(header): # decode_header returns a list of pairs (text, encoding) 
-                if isinstance(part, bytes): # If part is bytes, then decode it
+            for part, encoding in decode_header(header): 
+                if isinstance(part, bytes): 
                     if encoding: 
-                        decoded_parts.append(part.decode(encoding)) # If encoding is provided, then decode it
+                        decoded_parts.append(part.decode(encoding)) 
                     else: 
-                        decoded_parts.append(part.decode()) # If no encoding is provided, then just decode it
+                        try:
+                            decoded_parts.append(part.decode()) 
+                        except UnicodeDecodeError:
+                            # If decoding fails with default encoding, try latin-1
+                            decoded_parts.append(part.decode('latin-1'))
                 else: 
-                    decoded_parts.append(str(part)) # If part is not bytes, then just convert it to string
+                    decoded_parts.append(str(part)) 
                 
             return " ".join(decoded_parts)
-        except Exception:
+        except Exception as e:
+            print(f"Error decoding header '{header}': {e}")
             return header if header else ""

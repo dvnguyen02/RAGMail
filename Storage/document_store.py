@@ -128,21 +128,23 @@ class DocumentStore:
     
     def search(self, query: str) -> List[Dict[str, Any]]:
         """
-        Simple search function to find emails containing the query string.
+        Search emails by keyword.
+        Basic implementation that just looks for the query string in email fields.
         
         Args:
-            query: Search string
+            query: Search query string
             
         Returns:
-            List of matching email dictionaries
+            List of matching emails
         """
-        query = query.lower()
         results = []
         
-        for email in self.emails.values():
-            # Search in subject and body
-            if ('subject' in email and query in email['subject'].lower()) or \
-               ('body' in email and query in email['body'].lower()):
+        for email_id, email in self.emails.items():
+            # Check if query exists in subject or body
+            subject = email.get('Subject', '').lower()
+            body = email.get('body', '').lower() 
+            
+            if query.lower() in subject or query.lower() in body:
                 results.append(email)
         
         return results
