@@ -1,239 +1,168 @@
 import os
 import json
-import time
-from typing import Dict, Any, List, Optional, Set
 import logging
+from typing import Dict, Any, Optional, List
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class DocumentStore:
     """
-    Simple document store for emails.
-    This implementation stores emails in memory with an option to persist to disk.
+    Simple document store that stores emails as JSON files.
+    Each email is stored as a separate JSON file in the specified directory.
     """
     
-    def __init__(self, storage_dir: str = "email_data"):
+    def __init__(self, storage_path: str):
         """
         Initialize the document store.
         
         Args:
-            storage_dir: Directory to store persisted emails
+            storage_path: Path to the JSON file that stores the documents
         """
-        self.storage_dir = storage_dir
-        self.emails = {}  # In-memory storage: {email_id: email_dict}
-        self.persist_enabled = True
+        self.storage_path = storage_path
+        self.documents = {}
         
-        # Create the storage directory if it doesn't exist
-        if self.persist_enabled and not os.path.exists(storage_dir):
-            os.makedirs(storage_dir)
-            logger.info(f"Created storage directory: {storage_dir}")
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
+        
+        # Load existing documents if any
+        self._load_documents()
     
-    def add(self, email: Dict[str, Any]) -> bool:
+    def _load_documents(self):
+        """Load existing documents from the storage file."""
+        if os.path.exists(self.storage_path):
+            try:
+                with open(self.storage_path, 'r', encoding='utf-8') as f:
+                    self.documents = json.load(f)
+                logger.info(f"Loaded {len(self.documents)} documents from {self.storage_path}")
+            except json.JSONDecodeError:
+                logger.error(f"Error decoding JSON from {self.storage_path}")
+                self.documents = {}
+            except Exception as e:
+                logger.error(f"Error loading documents: {e}")
+                self.documents = {}
+        else:
+            logger.info(f"No document store found at {self.storage_path}, creating new store")
+            self.documents = {}
+    
+    def _save_documents(self):
+        """Save documents to the storage file."""
+        try:
+            with open(self.storage_path, 'w', encoding='utf-8') as f:
+                json.dump(self.documents, f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved {len(self.documents)} documents to {self.storage_path}")
+        except Exception as e:
+            logger.error(f"Error saving documents: {e}")
+    
+    def put(self, document: Dict[str, Any]) -> str:
         """
-        Add an email to the store.
+        Store a document.
         
         Args:
-            email: Email dictionary to store
+            document: Document to store
             
         Returns:
-            bool: True if successful, False otherwise
+            ID of the stored document
         """
-        # Ensure the email has an ID
-        if 'id' not in email:
-            logger.error("Cannot add email without an ID")
-            return False
+        # Generate a unique ID based on email fields
+        email_id = document.get("id")
         
-        email_id = email['id']
+        if not email_id:
+            # Generate an ID if none exists
+            subject = document.get("Subject", "")
+            sender = document.get("From", "")
+            date = document.get("Date", "")
+            email_id = f"{hash(subject + sender + date)}"
+            document["id"] = email_id
         
-        # Store in memory
-        self.emails[email_id] = email
+        # Store the document
+        self.documents[email_id] = document
         
-        # Persist to disk if enabled
-        if self.persist_enabled:
-            self._save_to_disk(email_id, email)
+        # Save to disk
+        self._save_documents()
         
-        return True
+        return email_id
     
-    def get(self, email_id: str) -> Optional[Dict[str, Any]]:
+    def get(self, document_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get an email by ID.
+        Get a document by ID.
         
         Args:
-            email_id: ID of the email to retrieve
+            document_id: ID of the document to retrieve
             
         Returns:
-            Email dictionary or None if not found
+            Document dictionary or None if not found
         """
-        # Try to get from memory
-        if email_id in self.emails:
-            return self.emails[email_id]
-        
-        # If not in memory and persistence is enabled, try to load from disk
-        if self.persist_enabled:
-            email = self._load_from_disk(email_id)
-            if email:
-                # Cache in memory for future access
-                self.emails[email_id] = email
-                return email
-        
-        return None
+        return self.documents.get(document_id)
     
-    def get_all(self) -> List[Dict[str, Any]]:
+    def delete(self, document_id: str) -> bool:
         """
-        Get all emails in the store.
-        
-        Returns:
-            List of all email dictionaries
-        """
-        # Return all emails in memory
-        return list(self.emails.values())
-    
-    def get_ids(self) -> Set[str]:
-        """
-        Get all email IDs in the store.
-        
-        Returns:
-            Set of email IDs
-        """
-        return set(self.emails.keys())
-    
-    def delete(self, email_id: str) -> bool:
-        """
-        Delete an email from the store.
+        Delete a document by ID.
         
         Args:
-            email_id: ID of the email to delete
+            document_id: ID of the document to delete
             
         Returns:
-            bool: True if successful, False otherwise
+            True if document was deleted, False otherwise
         """
-        # Remove from memory
-        if email_id in self.emails:
-            del self.emails[email_id]
+        if document_id in self.documents:
+            del self.documents[document_id]
+            self._save_documents()
+            return True
+        return False
+    
+    def get_all(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get all documents.
         
-        # Remove from disk if enabled
-        if self.persist_enabled:
-            file_path = os.path.join(self.storage_dir, f"{email_id}.json")
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                    return True
-                except Exception as e:
-                    logger.error(f"Error deleting email file {file_path}: {str(e)}")
-                    return False
-        
-        return True
+        Returns:
+            Dictionary of all documents with their IDs as keys
+        """
+        return self.documents
     
     def search(self, query: str) -> List[Dict[str, Any]]:
         """
-        Search emails by keyword.
-        Basic implementation that just looks for the query string in email fields.
+        Simple keyword-based search.
         
         Args:
             query: Search query string
             
         Returns:
-            List of matching emails
+            List of matching documents
         """
         results = []
+        query_lower = query.lower()
         
-        for email_id, email in self.emails.items():
-            # Check if query exists in subject or body
-            subject = email.get('Subject', '').lower()
-            body = email.get('body', '').lower() 
+        for document in self.documents.values():
+            # Check subject
+            subject = document.get("Subject", "").lower()
+            if query_lower in subject:
+                results.append(document)
+                continue
             
-            if query.lower() in subject or query.lower() in body:
-                results.append(email)
+            # Check sender
+            sender = document.get("From", "").lower()
+            if query_lower in sender:
+                results.append(document)
+                continue
+            
+            # Check body
+            body = document.get("Body", "").lower()
+            if query_lower in body:
+                results.append(document)
+                continue
         
         return results
     
-    def clear(self) -> None:
-        """Clear all emails from memory and optionally disk."""
-        # Clear memory
-        self.emails = {}
-        
-        # Clear disk if enabled
-        if self.persist_enabled:
-            for filename in os.listdir(self.storage_dir):
-                if filename.endswith('.json'):
-                    file_path = os.path.join(self.storage_dir, filename)
-                    try:
-                        os.remove(file_path)
-                    except Exception as e:
-                        logger.error(f"Error removing file {file_path}: {str(e)}")
+    def clear(self):
+        """Clear all documents."""
+        self.documents = {}
+        self._save_documents()
     
     def count(self) -> int:
         """
-        Get the number of emails in the store.
+        Get the number of documents.
         
         Returns:
-            int: Number of emails
+            Number of documents
         """
-        return len(self.emails)
-    
-    def _save_to_disk(self, email_id: str, email: Dict[str, Any]) -> bool:
-        """
-        Save an email to disk.
-        
-        Args:
-            email_id: ID of the email
-            email: Email dictionary
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        file_path = os.path.join(self.storage_dir, f"{email_id}.json")
-        
-        try:
-            with open(file_path, 'w') as f:
-                json.dump(email, f, indent=2)
-            return True
-        except Exception as e:
-            logger.error(f"Error saving email to {file_path}: {str(e)}")
-            return False
-    
-    def _load_from_disk(self, email_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Load an email from disk.
-        
-        Args:
-            email_id: ID of the email
-            
-        Returns:
-            Email dictionary or None if not found or error
-        """
-        file_path = os.path.join(self.storage_dir, f"{email_id}.json")
-        
-        if not os.path.exists(file_path):
-            return None
-        
-        try:
-            with open(file_path, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Error loading email from {file_path}: {str(e)}")
-            return None
-    
-    def load_all_from_disk(self) -> int:
-        """
-        Load all emails from disk into memory.
-        
-        Returns:
-            int: Number of emails loaded
-        """
-        if not self.persist_enabled:
-            return 0
-            
-        count = 0
-        for filename in os.listdir(self.storage_dir):
-            if filename.endswith('.json'):
-                email_id = filename[:-5]  # Remove the .json extension
-                email = self._load_from_disk(email_id)
-                if email:
-                    self.emails[email_id] = email
-                    count += 1
-        
-        logger.info(f"Loaded {count} emails from disk")
-        return count
+        return len(self.documents)

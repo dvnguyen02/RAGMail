@@ -1,50 +1,34 @@
-"""
-Configs for the system
-Handles the configuration setting and env variables.
-"""
-
-import os 
+import os
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv(override=True)
 
-class Config: 
-    """Configuration for the RAG system
-        Note that all the password used here are app passwords"""
-
-    # Gmail and Outlook credentials
+class Config:
+    """Configuration constants for the RAGMail application."""
+    
+    # General settings
+    APP_NAME = "RAGMail"
+    VERSION = "0.1.0"
+    
+    # Storage settings
+    STORAGE_PATH = os.getenv("STORAGE_PATH", "ragmail_data")
+    
+    # Email settings
     GMAIL_USERNAME = os.getenv("GMAIL_USERNAME")
     GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
-
-    OUTLOOK_USERNAME = os.getenv("OUTLOOK_USERNAME")
-    OUTLOOK_PASSWORD = os.getenv("OUTLOOK_PASSWORD")
-
-    # OPENAI API key
+    DEFAULT_DAY_BACKS = 7  # Default number of days to go back
+    
+    # Embedding model settings
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+    
+    # OpenAI settings for LLM features
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    OPENAI_MODEL = os.getenv("OPENAI_MODEL")
-
-    # Embedding model - here I use all-MiniLM-L6-V2 since it's free and popular
-    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
-
-    # Storage configs
-    STORAGE_TYPE = os.getenv("STORAGE_TYPE")
-    STORAGE_PATH = os.getenv("STORAGE_PATH")
-
-    # CHATGPT model settings
-    DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", "5"))
-    DEFAULT_TOP_P = float(os.getenv("DEFAULT_TOP_P", "0.9"))
-    DEFAULT_TEMPERATURE = float(os.getenv("DEFAULT_TEMPERATURE", "0.6"))
-
-    # App settings
-    DEFAULT_DAY_BACKS = int(os.getenv("DEFAULT_DAY_BACKS", "30"))
-
-    @classmethod
-    def validate_connection(cls) -> None:
-        """Validate the connection to the email servers"""
-        if not (cls.GMAIL_USERNAME and cls.GMAIL_PASSWORD) and not (cls.OUTLOOK_USERNAME and cls.OUTLOOK_PASSWORD):
-            print("No emails credentials found in the environment variables")
-        if not cls.OPENAI_API_KEY:
-            print("No OpenAI API key found in the environment variables")
-
-# Validate the connection
-Config.validate_connection()
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")  # or "gpt-4" for better quality
+    
+    # Search settings
+    DEFAULT_SEARCH_TYPE = "semantic"
+    DEFAULT_SEARCH_LIMIT = 5
+    
+    # API rate limiting
+    API_RATE_LIMIT = int(os.getenv("API_RATE_LIMIT", "10"))

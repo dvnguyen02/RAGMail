@@ -9,6 +9,8 @@ readme = "README.md"
 python = "^3.12"
 dotenv = "^0.9.9"
 numpy = "^2.2.3"
+openai = "^1.65.4"
+tenacity = "^9.0.0"
 
 
 [tool.poetry.group.dev.dependencies]
