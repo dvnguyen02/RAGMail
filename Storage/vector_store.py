@@ -1,4 +1,3 @@
-# RAGMail/storage/vector_store.py
 import os
 import json
 import numpy as np

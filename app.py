@@ -11,10 +11,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Import components
+
 from connectors import GmailConnector
 from storage.document_store import DocumentStore
 from service.llm_only_query_service import LLMOnlyQueryService
-
+from service.RAGQuery import RAGQueryService
+from storage.vector_store import VectorStore
+from processors.embedding_processor import EmbeddingProcessor
 # Load environment variables
 load_dotenv(override=True)
 
@@ -71,14 +74,22 @@ class RAGMailInteractive:
         self.email_connector = GmailConnector(username, password)
         
         # Initialize storage components
-        # Use home directory to avoid permission issues
         home_dir = str(Path.home())
         storage_path = os.path.join(home_dir, "RAGMail_data")
         os.makedirs(storage_path, exist_ok=True)
         
+        # Initialize document store
         self.document_store = DocumentStore(os.path.join(storage_path, "document_store.json"))
         
-        # Initialize LLM query service
+        # Initialize vector store
+        vector_store_dir = os.path.join(storage_path, "vector_store")
+        self.vector_store = VectorStore(vector_store_dir)
+        
+        # Initialize embedding processor
+        model_name = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+        self.embedding_processor = EmbeddingProcessor(model_name)
+        
+        # Initialize query service
         openai_api_key = os.getenv("OPENAI_API_KEY")
         model_name = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
         
@@ -86,8 +97,11 @@ class RAGMailInteractive:
             logger.warning("OpenAI API key not found. Set OPENAI_API_KEY in .env file for LLM features.")
             print(f"{YELLOW}Warning: OpenAI API key not found. Set OPENAI_API_KEY in .env file for LLM features.{RESET}")
         
-        self.query_service = LLMOnlyQueryService(
+        # Create a new RAGQueryService that combines retrieval with generation
+        self.query_service = RAGQueryService(
             document_store=self.document_store,
+            vector_store=self.vector_store,
+            embedding_processor=self.embedding_processor,
             openai_api_key=openai_api_key,
             model_name=model_name
         )
@@ -134,8 +148,7 @@ class RAGMailInteractive:
         
     def fetch_and_process_emails(self, limit: int = 10) -> List[Dict[str, Any]]:
         """
-        Fetch emails and store them in the document store.
-        No embedding generation needed for LLM-only approach.
+        Fetch emails, generate embeddings, and store them.
         
         Args:
             limit: Maximum number of emails to fetch
@@ -148,12 +161,23 @@ class RAGMailInteractive:
             logger.info(f"Fetching up to {limit} emails")
             raw_emails = self.email_connector.get_emails(limit)
             
-            # Store each email in document store
+            # Store each email and generate embeddings
             processed_emails = []
             
             for email_dict in raw_emails:
                 # Store email in document store
                 email_id = self.document_store.put(email_dict)
+                
+                # Generate embedding for the email
+                embedding = self.embedding_processor.generate_embedding(email_dict)
+                
+                # Store embedding in vector store
+                if embedding is not None:
+                    self.vector_store.add(email_id, embedding)
+                    logger.info(f"Generated and stored embedding for email {email_id}")
+                else:
+                    logger.warning(f"Failed to generate embedding for email {email_id}")
+                
                 processed_emails.append(email_dict)
             
             logger.info(f"Processed {len(processed_emails)} emails")
@@ -165,7 +189,7 @@ class RAGMailInteractive:
     
     def search_emails(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """
-        Search for emails using LLM-based search.
+        Search for emails using semantic search.
         
         Args:
             query: Search query string
@@ -174,11 +198,12 @@ class RAGMailInteractive:
         Returns:
             List of matching email dictionaries
         """
-        logger.info(f"Searching emails with LLM for query: '{query}'")
-        print(f"{CYAN}Searching emails with LLM...{RESET}")
+        logger.info(f"Searching emails with semantic search for query: '{query}'")
+        print(f"{CYAN}Searching emails using semantic search...{RESET}")
         
         try:
-            results = self.query_service.search(query, top_k)
+            # Use the query service's semantic search
+            results = self.query_service.search(query, search_type="semantic", top_k=top_k)
             logger.info(f"Search returned {len(results)} results")
             return results
         except Exception as e:
