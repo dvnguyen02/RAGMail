@@ -14,9 +14,9 @@ from dotenv import load_dotenv
 
 from connectors import GmailConnector
 from storage.document_store import DocumentStore
+from storage.vector_store import VectorStore
 from service.llm_only_query_service import LLMOnlyQueryService
 from service.RAGQuery import RAGQueryService
-from storage.vector_store import VectorStore
 from processors.embedding_processor import EmbeddingProcessor
 # Load environment variables
 load_dotenv(override=True)
