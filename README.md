@@ -46,8 +46,8 @@ The system can operate in multiple search modes:
    OPENAI_API_KEY=your_openai_api_key
    
    # Optional configuration
-   OPENAI_MODEL=gpt-3.5-turbo
-   EMBEDDING_MODEL=all-MiniLM-L6-v2
+   OPENAI_MODEL=your_gpt_model
+   EMBEDDING_MODEL=all-MiniLM-L6-v2 (recommended this embedding model)
    STORAGE_PATH=ragmail_data
    API_RATE_LIMIT=10
 
@@ -57,7 +57,7 @@ The system can operate in multiple search modes:
    DEFAULT_TEMPERATURE = 0.6
    ```
 
-   **Note**: For Gmail, We advise you to use an App Password instead of your actual password. Click here to find where your app password located [App Password](https://support.google.com/accounts/answer/185833?hl=en) 
+   **Note**: For Gmail, we advise you to use an App Password instead of your actual password. Click here to find where your app password located [App Password](https://support.google.com/accounts/answer/185833?hl=en) 
 
 ## Usage
 
