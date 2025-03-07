@@ -7,10 +7,6 @@
 
 RAGMail is an intelligent email management system that uses Retrieval Augmented Generation (RAG) to help you search, analyze, and interact with your emails using natural language.
 
-- **Email Synchronization**: Connect to Gmail and automatically sync your recent emails
-- **Semantic Search**: Find relevant emails using natural language queries
-- **Question Answering**: Ask questions about your emails and get AI-powered answers
-- **Interactive Mode**: Use a command-line interface to interactively work with your emails
 
 ## Architecture
 
