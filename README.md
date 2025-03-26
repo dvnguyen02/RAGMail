@@ -117,6 +117,11 @@ For a daily briefing of your emails when you start your computer:
    - Press `Win + R` and type `shell:startup`
    - Create a shortcut to your batch file in this folder
 
+## Your Email Data
+
+- In order to see what emails has been synced to your computer, after you run the sync feature, there will be a ragmail_data directory which comprises two sub dir: 
+- email_data (json format) and vector_data (vector)
+
 ## Development
 
 ## Future Enhancements
