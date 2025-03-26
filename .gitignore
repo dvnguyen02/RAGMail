@@ -1,3 +1,5 @@
 .env
 .gitignore
 RunRagMail.bat
+__pycache__
+ragmail_data
