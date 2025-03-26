@@ -5,18 +5,14 @@
 
 # RAGMail
 
-RAGMail is an intelligent email management system that uses Retrieval Augmented Generation (RAG) to help you search, analyze, and interact with your emails using natural language.
+RAGMail is an intelligent email management system that uses Retrieval Augmented Generation (RAG) to help you search, analyze, and interact with your emails using LLM.
 
+## Features
 
-## Architecture
-
-RAGMail implements a full Retrieval Augmented Generation (RAG) pipeline:
-
-1. **Retrieval**: Emails are indexed with vector embeddings generated using the Sentence Transformers library. When a query is received, the system performs semantic search to retrieve the most relevant emails based on vector similarity.
-
-2. **Augmentation**: The retrieved emails are added to the context when preparing the prompt for the language model. This provides the LLM with relevant information specific to the user's query.
-
-3. **Generation**: OpenAI's models are used to generate natural language responses based on the augmented context, providing answers that are grounded in the actual content of the user's emails.
+- **Smart Email Search**: Find emails using natural language queries
+- **Ask Questions About Your Emails**: Get answers based on your email content
+- **Daily Email Summary**: Automatically get a summary of recent emails when you start your computer
+- **Interactive Mode**: Converse naturally with your email data
 
 The system can operate in multiple search modes:
 - **Semantic Search**: Using vector embeddings for similarity matching
@@ -47,9 +43,9 @@ The system can operate in multiple search modes:
    
    # Optional configuration
    OPENAI_MODEL=your_gpt_model
-   EMBEDDING_MODEL=all-MiniLM-L6-v2 (recommended this embedding model)
+   EMBEDDING_MODEL=all-MiniLM-L6-v2 (recommended this embedding model, or you could use other private embedding models)
    STORAGE_PATH=ragmail_data
-   API_RATE_LIMIT=10
+   API_RATE_LIMIT=10 (to control the api uses)
 
    # App settings
    DEFAULT DAYS BACK = 30
@@ -73,6 +69,7 @@ This will start an interactive shell where you can:
 - Search for emails: `search [query]`
 - Ask questions: `ask [question]` or simply type your question
 - Sync more emails: `sync [limit]`
+- View email summary: `summary [days]` (defaults to 1 day)
 - Get help: `help`
 - Exit: `exit`
 
@@ -84,7 +81,8 @@ You can also use specific commands directly:
    ```
    python ragmail.py sync --limit 20
    ```
-   After syncing you could just use services.
+   After syncing you could use the services. 
+   * Note that if you sync too much it might cause the LLM to hallucinate.
 
 2. Search for emails:
    ```
@@ -96,15 +94,36 @@ You can also use specific commands directly:
    python ragmail.py ask "When is my next appointment?"
    ```
 
+4. Get a summary of recent emails:
+   ```
+   python ragmail.py summary --days 1
+   ```
+
+### Automatic Email Summary on Boot [NEW UPDATE]
+
+For a daily briefing of your emails when you start your computer:
+
+#### Windows
+
+1. Create a batch file (e.g., `RunRAGMail.bat`) with the following content:
+   ```batch
+   @echo off
+   cd C:\path\to\your\ragmail\directory
+   python LaunchRagMail.py
+   pause
+   ```
+
+2. Add to startup:
+   - Press `Win + R` and type `shell:startup`
+   - Create a shortcut to your batch file in this folder
+
 ## Development
 
 ## Future Enhancements
 
-- Support for additional email providers - Outlook
+- Support for Outlook
 - Integrate a GUI for better experience
 - Email categorization and tagging
-- Scheduled summaries of important emails (like everyday newletter)
-- Advanced filtering and organization capabilities 
 
 ## License
 
