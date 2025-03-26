@@ -127,8 +127,7 @@ For a daily briefing of your emails when you start your computer:
 ## Future Enhancements
 
 - Support for Outlook
-- Integrate a GUI for better experience
-- Email categorization and tagging
+- Agentic Features ( automatically reply to an email )
 
 ## License
 
