@@ -75,13 +75,13 @@ This will start an interactive shell where you can:
 
 ### Command Line Usage
 
-You can also use specific commands directly:
+In order to use, you need to synce your emails first: 
 
 1. Sync recent emails:
    ```
    python ragmail.py sync --limit 20
    ```
-   After syncing you could use the services. 
+   After syncing you could use other services (ask, search). 
    * Note that if you sync too much it might cause the LLM to hallucinate.
 
 2. Search for emails:

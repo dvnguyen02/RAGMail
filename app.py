@@ -1,11 +1,12 @@
+import json
+import logging
+import traceback
 import os
 import sys
-import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import email.utils
 import argparse
-import json
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -180,9 +181,9 @@ class SimpleRAGMail:
             print(f"{RED}Error searching emails: {e}{RESET}")
             return []
     
-    def llm_search(self, query: str, top_k: int = 5) -> Dict[str, Any]:
+    def optimized_llm_search(self, query: str, top_k: int = 5) -> Dict[str, Any]:
         """
-        Perform an LLM-powered search that first finds relevant emails and then
+        Perform an optimized LLM-powered search that finds relevant emails and
         asks the LLM to analyze and respond to the query based on those emails.
         
         Args:
@@ -192,39 +193,118 @@ class SimpleRAGMail:
         Returns:
             Dictionary with LLM response and relevant emails
         """
+        logger.info(f"Starting optimized LLM search for: '{query}'")
+        
+        # Check if OpenAI API key is configured
         if not self.query_service.client:
+            logger.error("LLM search unavailable: OpenAI client not initialized")
             return {
-                "response": "LLM search is not available. Check your OpenAI API key configuration.",
+                "response": "LLM search is not available. Please check your OpenAI API key configuration.",
                 "emails": []
             }
         
-        logger.info(f"Performing LLM search for: '{query}'")
-        print(f"{CYAN}Searching emails with LLM...{RESET}")
-        
         try:
-            # First, use semantic search to find relevant emails
-            results = self.query_service.search(query, search_type="semantic", top_k=top_k)
+            # First try semantic search
+            logger.info(f"Attempting semantic search for: '{query}'")
+            semantic_results = self.query_service.search(query, search_type="semantic", top_k=top_k)
             
-            if not results:
-                return {
-                    "response": f"I couldn't find any emails matching '{query}'.",
-                    "emails": []
-                }
+            # If semantic search failed, try keyword search as fallback
+            if not semantic_results:
+                logger.info(f"Semantic search found no results, falling back to keyword search")
+                keyword_results = self.document_store.search(query)
+                
+                if keyword_results:
+                    logger.info(f"Keyword search found {len(keyword_results)} results")
+                    results = keyword_results[:top_k]  # Limit to top_k
+                else:
+                    logger.warning(f"Both semantic and keyword search found no results")
+                    email_count = self.document_store.count()
+                    return {
+                        "response": f"I couldn't find any emails matching '{query}'. There are {email_count} total emails in the database.",
+                        "emails": []
+                    }
+            else:
+                results = semantic_results
+                logger.info(f"Semantic search found {len(results)} results")
             
-            # Prepare email contexts for the LLM
+            # Prepare email contexts for the LLM with improved truncation logic
             email_contexts = []
-            for email in results:
+            for i, email in enumerate(results):
+                # Ensure email has an ID
+                email_id = email.get("id", f"email-{i}")
+                
+                # Get subject and sender, with defaults
+                subject = email.get("Subject", "No subject")
+                sender = email.get("From", "Unknown sender")
+                date = email.get("Date", "Unknown date")
+                
+                # Smart truncation of body text based on query relevance
+                body = email.get("Body", "")
+                if body:
+                    # If body is very long, try to find and focus on relevant parts
+                    if len(body) > 1000:
+                        # Try to find parts of the body containing query terms
+                        query_terms = query.lower().split()
+                        relevant_snippets = []
+                        
+                        # Break body into paragraphs
+                        paragraphs = body.split('\n\n')
+                        
+                        # Score each paragraph by relevant terms
+                        for para in paragraphs:
+                            if len(para.strip()) < 10:  # Skip very short paragraphs
+                                continue
+                                
+                            relevance_score = 0
+                            para_lower = para.lower()
+                            for term in query_terms:
+                                if term in para_lower:
+                                    relevance_score += 1
+                            
+                            if relevance_score > 0:
+                                # Add to relevant snippets with its score
+                                relevant_snippets.append((para, relevance_score))
+                        
+                        # If we found relevant snippets, use them
+                        if relevant_snippets:
+                            # Sort by relevance score (highest first)
+                            relevant_snippets.sort(key=lambda x: x[1], reverse=True)
+                            
+                            # Take top 3 snippets
+                            selected_snippets = [snippet for snippet, _ in relevant_snippets[:3]]
+                            
+                            # Join with separator and truncate if still too long
+                            body_text = "\n...\n".join(selected_snippets)
+                            if len(body_text) > 1000:
+                                body_text = body_text[:997] + "..."
+                        else:
+                            # If no relevant snippets, use beginning and end
+                            body_text = body[:500] + "\n...\n" + body[-500:]
+                    else:
+                        body_text = body
+                else:
+                    body_text = ""
+                
+                # Create context with all relevant information
                 email_ctx = {
-                    "id": email.get("id", ""),
-                    "subject": email.get("Subject", "No subject"),
-                    "from": email.get("From", "Unknown sender"),
-                    "date": email.get("Date", "Unknown date"),
-                    "body": email.get("Body", "")[:500] if "Body" in email else "",  # Limit for token count
+                    "id": email_id,
+                    "subject": subject,
+                    "from": sender,
+                    "date": date,
+                    "body": body_text,
                     "similarity": email.get("similarity_score", 0)
                 }
                 email_contexts.append(email_ctx)
             
-            # Prepare messages for the LLM
+            # Check if we have any email contexts
+            if not email_contexts:
+                logger.warning("No valid email contexts could be created")
+                return {
+                    "response": f"I found some emails matching '{query}', but couldn't process them properly.",
+                    "emails": results
+                }
+            
+            # Prepare an improved system message for more accurate responses
             system_message = """
             You are an email assistant that helps users find information in their emails.
             Given a user's search query and a set of relevant emails, provide a helpful response that:
@@ -233,9 +313,16 @@ class SimpleRAGMail:
             2. Summarizes the key information from the relevant emails
             3. Provides specific details that address the search query
             4. Mentions which emails contain the relevant information
+            5. If the emails don't contain an answer to the query, clearly state that
             
             Be conversational and helpful. Don't just list the emails - synthesize the information
             to provide a complete answer to the user's question or search.
+            
+            Important: 
+            - Focus only on the content provided in the emails
+            - If information is missing from the emails, state that clearly
+            - Cite specific details from emails when possible (subject, sender, date)
+            - Provide your answer in a clear, structured format
             """
             
             user_message = f"""
@@ -249,16 +336,28 @@ class SimpleRAGMail:
             Based on these emails, please provide a helpful response to the user's search query.
             """
             
-            # Generate the response using the LLM
-            llm_response = self.query_service._call_llm_api(
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ],
-                temperature=0.3,
-                max_tokens=800,
-                json_mode=False
-            )
+            # Generate the response using the LLM with enhanced error handling
+            try:
+                logger.info("Calling LLM API for response generation")
+                llm_response = self.query_service._call_llm_api(
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ],
+                    temperature=0.3,
+                    max_tokens=800,
+                    json_mode=False
+                )
+                logger.info("Successfully received LLM response")
+                
+                # Ensure we got a valid response
+                if not llm_response or len(llm_response.strip()) < 10:
+                    logger.warning("LLM returned empty or very short response")
+                    llm_response = f"I found {len(results)} emails matching your query, but couldn't generate a detailed response."
+            
+            except Exception as llm_error:
+                logger.error(f"Error calling LLM API: {llm_error}")
+                llm_response = f"I found {len(results)} emails matching your query, but encountered an error generating a detailed response: {str(llm_error)}"
             
             return {
                 "response": llm_response,
@@ -266,11 +365,12 @@ class SimpleRAGMail:
             }
                 
         except Exception as e:
-            logger.error(f"Error in LLM search: {e}")
+            logger.error(f"Error in optimized LLM search: {e}", exc_info=True)
             return {
-                "response": f"Error performing LLM search: {str(e)}",
+                "response": f"An error occurred while processing your query: {str(e)}",
                 "emails": []
             }
+            
     
     def display_llm_search_results(self, results: Dict[str, Any]):
         """
@@ -599,7 +699,7 @@ class SimpleRAGMail:
                         print(f"{YELLOW}Please provide a search query.{RESET}")
                         continue
                     
-                    results = self.llm_search(query)
+                    results = self.optimized_llm_search(query)
                     self.display_llm_search_results(results)
                     continue
                 
