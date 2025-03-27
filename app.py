@@ -192,8 +192,9 @@ class SimpleRAGMail:
         """
         logger.info(f"Fetching emails from the past {since_days} days")
         
-        # Calculate the date threshold
-        cutoff_date = datetime.now() - timedelta(days=since_days)
+        # Calculate the date threshold - make it timezone-aware with UTC
+        from datetime import timezone
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=since_days)
         
         # Get all emails from the document store
         all_emails = self.document_store.get_all()
@@ -203,20 +204,22 @@ class SimpleRAGMail:
         
         # Filter emails by date
         recent_emails = []
-        for email_id, email in all_emails.items():
+        for email_id, email_dict in all_emails.items():
             # Parse the email date
-            date_str = email.get("Date")
+            date_str = email_dict.get("Date")
             if not date_str:
                 continue
                 
             try:
-                # Parse the email date string
+                # Parse the email date string using the imported email.utils module
+                # email.utils.parsedate_to_datetime() returns timezone-aware datetime objects
                 email_date = email.utils.parsedate_to_datetime(date_str)
                 
                 # Check if the email is after the cutoff date
+                # Both datetimes are now timezone-aware, so comparison will work
                 if email_date > cutoff_date:
-                    email["id"] = email_id  # Add ID to the email dict
-                    recent_emails.append(email)
+                    email_dict["id"] = email_id  # Add ID to the email dict
+                    recent_emails.append(email_dict)
             except Exception as e:
                 logger.warning(f"Error parsing date for email {email_id}: {e}")
                 continue
