@@ -158,14 +158,29 @@ class VectorStore:
                     except Exception as e:
                         logger.error(f"Error removing file {file_path}: {str(e)}")
     
-    def count(self) -> int:
+    # Update your vector_store.py file with this method
+    def count(self):
         """
-        Get the number of vectors in the store.
+        Count the number of vectors in the store.
         
         Returns:
-            int: Number of vectors
+            int: Number of vectors in the store
         """
-        return len(self.vectors)
+        # If the index hasn't been initialized yet, return 0
+        if not hasattr(self, 'index') or self.index is None:
+            return 0
+        
+        # Try to get the count from the FAISS index if possible
+        try:
+            return self.index.ntotal
+        except Exception as e:
+            logger.error(f"Error counting vectors: {e}")
+            
+            # Fallback: try to count using the ID list
+            if hasattr(self, 'ids') and self.ids is not None:
+                return len(self.ids)
+            
+            return 0
     
     def _save_to_disk(self, email_id: str, vector: np.ndarray) -> bool:
         """

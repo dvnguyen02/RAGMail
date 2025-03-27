@@ -130,7 +130,7 @@ class SimpleRAGMail:
                 return 0
             
             # Fetch and process emails
-            print(f"{CYAN}Fetching and processing emails...{RESET}")
+            print(f"{CYAN}Fetching and processing {limit} emails...{RESET}")
             raw_emails = self.email_connector.get_emails(limit)
             
             # Store each email and generate embeddings
@@ -179,6 +179,135 @@ class SimpleRAGMail:
             logger.error(f"Error searching emails: {e}")
             print(f"{RED}Error searching emails: {e}{RESET}")
             return []
+    
+    def llm_search(self, query: str, top_k: int = 5) -> Dict[str, Any]:
+        """
+        Perform an LLM-powered search that first finds relevant emails and then
+        asks the LLM to analyze and respond to the query based on those emails.
+        
+        Args:
+            query: Search query string
+            top_k: Number of top results to return
+            
+        Returns:
+            Dictionary with LLM response and relevant emails
+        """
+        if not self.query_service.client:
+            return {
+                "response": "LLM search is not available. Check your OpenAI API key configuration.",
+                "emails": []
+            }
+        
+        logger.info(f"Performing LLM search for: '{query}'")
+        print(f"{CYAN}Searching emails with LLM...{RESET}")
+        
+        try:
+            # First, use semantic search to find relevant emails
+            results = self.query_service.search(query, search_type="semantic", top_k=top_k)
+            
+            if not results:
+                return {
+                    "response": f"I couldn't find any emails matching '{query}'.",
+                    "emails": []
+                }
+            
+            # Prepare email contexts for the LLM
+            email_contexts = []
+            for email in results:
+                email_ctx = {
+                    "id": email.get("id", ""),
+                    "subject": email.get("Subject", "No subject"),
+                    "from": email.get("From", "Unknown sender"),
+                    "date": email.get("Date", "Unknown date"),
+                    "body": email.get("Body", "")[:500] if "Body" in email else "",  # Limit for token count
+                    "similarity": email.get("similarity_score", 0)
+                }
+                email_contexts.append(email_ctx)
+            
+            # Prepare messages for the LLM
+            system_message = """
+            You are an email assistant that helps users find information in their emails.
+            Given a user's search query and a set of relevant emails, provide a helpful response that:
+            
+            1. Directly answers the user's query based on the email content
+            2. Summarizes the key information from the relevant emails
+            3. Provides specific details that address the search query
+            4. Mentions which emails contain the relevant information
+            
+            Be conversational and helpful. Don't just list the emails - synthesize the information
+            to provide a complete answer to the user's question or search.
+            """
+            
+            user_message = f"""
+            User search query: "{query}"
+            
+            Relevant emails:
+            ```
+            {json.dumps(email_contexts, indent=2)}
+            ```
+            
+            Based on these emails, please provide a helpful response to the user's search query.
+            """
+            
+            # Generate the response using the LLM
+            llm_response = self.query_service._call_llm_api(
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0.3,
+                max_tokens=800,
+                json_mode=False
+            )
+            
+            return {
+                "response": llm_response,
+                "emails": results
+            }
+                
+        except Exception as e:
+            logger.error(f"Error in LLM search: {e}")
+            return {
+                "response": f"Error performing LLM search: {str(e)}",
+                "emails": []
+            }
+    
+    def display_llm_search_results(self, results: Dict[str, Any]):
+        """
+        Display LLM search results in a user-friendly format.
+        
+        Args:
+            results: Dictionary with LLM response and matching emails
+        """
+        llm_response = results.get("response", "")
+        emails = results.get("emails", [])
+        
+        print(f"\n{BOLD}{CYAN}🔍 LLM Search Results{RESET}")
+        print(f"{BOLD}{'=' * 60}{RESET}\n")
+        
+        # Print the LLM response
+        print(f"{llm_response}\n")
+        
+        # Print a header for the email list if there are any
+        if emails:
+            print(f"\n{BOLD}Referenced Emails:{RESET}")
+            
+            # Display a shortened version of the emails
+            for i, email in enumerate(emails, 1):
+                subject = email.get("Subject", "No subject")
+                sender = email.get("From", "Unknown sender")
+                date = email.get("Date", "Unknown date")
+                
+                print(f"  {i}. {BOLD}{subject}{RESET}")
+                print(f"     From: {sender} | Date: {date}")
+                
+                # Print relevance info if present
+                if "similarity_score" in email:
+                    print(f"     Relevance: {email['similarity_score']:.2f}")
+                
+                print()
+        
+        print(f"{BOLD}{'=' * 60}{RESET}\n")
     
     def get_recent_emails(self, since_days: int = 1) -> List[Dict[str, Any]]:
         """
@@ -405,6 +534,7 @@ class SimpleRAGMail:
             print()
     
     def run(self):
+    
         """Run the RAGMail application."""
         if not self.is_initialized:
             print(f"{RED}RAGMail failed to initialize. Check the logs for details.{RESET}")
@@ -431,6 +561,8 @@ class SimpleRAGMail:
             # Simple command loop for searches
             print(f"{BOLD}Simple RAGMail Commands:{RESET}")
             print(f"  {BOLD}search [query]{RESET} - Search for emails matching your query")
+            print(f"  {BOLD}ask [query]{RESET} - Ask LLM to search and answer questions about your emails")
+            print(f"  {BOLD}sync [limit]{RESET} - Sync recent emails (limit is optional, default is 30)")
             print(f"  {BOLD}exit{RESET} - Exit the application")
             print()
             
@@ -445,7 +577,33 @@ class SimpleRAGMail:
                     print("Exiting RAGMail...")
                     break
                 
-                # Check for search command
+                # Check for sync command
+                if command.lower().startswith("sync"):
+                    # Extract limit if provided
+                    parts = command.split(maxsplit=1)
+                    limit = 30  # Default limit
+                    if len(parts) > 1:
+                        try:
+                            limit = int(parts[1])
+                        except ValueError:
+                            print(f"{YELLOW}Invalid limit value. Using default limit of 30.{RESET}")
+                    
+                    print(f"{CYAN}Syncing {limit} recent emails...{RESET}")
+                    self.sync_recent_emails(limit=limit)
+                    continue
+                
+                # Check for LLM search/ask command
+                if command.lower().startswith("ask "):
+                    query = command[4:].strip()
+                    if not query:
+                        print(f"{YELLOW}Please provide a search query.{RESET}")
+                        continue
+                    
+                    results = self.llm_search(query)
+                    self.display_llm_search_results(results)
+                    continue
+                
+                # Check for regular search command
                 if command.lower().startswith("search "):
                     query = command[7:].strip()
                     if not query:
@@ -458,7 +616,28 @@ class SimpleRAGMail:
                     # Treat as search query
                     results = self.search_emails(command)
                     self.display_search_results(results)
-            
+                if command.lower().startswith("debug-ask "):
+                    query = command[10:].strip()
+                    if not query:
+                        print(f"{YELLOW}Please provide a search query.{RESET}")
+                        continue
+                    
+                    results = self.debug_llm_search(query)
+                    self.display_llm_search_results(results)
+                    continue
+                    
+                # Check for keyword search command
+                if command.lower().startswith("keyword "):
+                    query = command[8:].strip()
+                    if not query:
+                        print(f"{YELLOW}Please provide a search query.{RESET}")
+                        continue
+                    
+                    # Use document store's keyword search directly
+                    results = self.document_store.search(query)
+                    print(f"{YELLOW}Using keyword search directly (bypassing semantic search){RESET}")
+                    self.display_search_results(results)
+                    continue
             return 0
             
         except KeyboardInterrupt:
@@ -472,17 +651,182 @@ class SimpleRAGMail:
             return 1
         finally:
             self.close_connections()
+    def debug_llm_search(self, query: str, top_k: int = 5) -> Dict[str, Any]:
+        """
+        Debug version of LLM-powered search with detailed logging to identify issues.
+        
+        Args:
+            query: Search query string
+            top_k: Number of top results to return
+            
+        Returns:
+            Dictionary with LLM response and relevant emails
+        """
+        print(f"{YELLOW}DEBUG: Starting LLM search for query: '{query}'{RESET}")
+        
+        # Check if OpenAI API key is available
+        if not self.query_service.client:
+            print(f"{RED}DEBUG: OpenAI client not available. Check API key.{RESET}")
+            return {
+                "response": "LLM search is not available. Check your OpenAI API key configuration.",
+                "emails": []
+            }
+        
+        logger.info(f"Performing debug LLM search for: '{query}'")
+        print(f"{CYAN}Searching emails with LLM (debug mode)...{RESET}")
+        
+        try:
+            # First, check the vector store size
+            vector_count = self.vector_store.count() if hasattr(self.vector_store, 'count') else "unknown"
+            print(f"{YELLOW}DEBUG: Vector store contains approximately {vector_count} vectors{RESET}")
+            
+            # Check if embeddings can be generated for the query
+            print(f"{YELLOW}DEBUG: Generating query embedding...{RESET}")
+            query_embedding = self.embedding_processor.generate_query_embedding(query)
+            if query_embedding is None:
+                print(f"{RED}DEBUG: Failed to generate query embedding{RESET}")
+            else:
+                print(f"{GREEN}DEBUG: Successfully generated query embedding of shape {query_embedding.shape}{RESET}")
+            
+            # First, try keyword search to see if there are any matching emails at all
+            print(f"{YELLOW}DEBUG: Performing keyword search as fallback...{RESET}")
+            keyword_results = self.document_store.search(query)
+            print(f"{YELLOW}DEBUG: Keyword search found {len(keyword_results)} results{RESET}")
+            
+            # Now try semantic search
+            print(f"{YELLOW}DEBUG: Performing semantic search...{RESET}")
+            results = self.query_service.search(query, search_type="semantic", top_k=top_k)
+            print(f"{YELLOW}DEBUG: Semantic search found {len(results)} results{RESET}")
+            
+            # If semantic search found nothing but keyword search did, use keyword results
+            if not results and keyword_results:
+                print(f"{YELLOW}DEBUG: Using keyword search results instead of empty semantic results{RESET}")
+                results = keyword_results[:top_k]
+            
+            if not results:
+                print(f"{RED}DEBUG: No emails found matching the query{RESET}")
+                # Show total number of emails in the store as a sanity check
+                email_count = self.document_store.count()
+                print(f"{RED}DEBUG: Note that document store contains {email_count} total emails{RESET}")
+                
+                return {
+                    "response": f"I couldn't find any emails matching '{query}'.\nThere are {email_count} total emails in the database.",
+                    "emails": []
+                }
+            
+            # Prepare email contexts for the LLM
+            print(f"{YELLOW}DEBUG: Preparing email contexts for LLM...{RESET}")
+            email_contexts = []
+            for i, email in enumerate(results):
+                email_id = email.get("id", f"unknown-{i}")
+                subject = email.get("Subject", "No subject")
+                print(f"{YELLOW}DEBUG: Including email: ID={email_id}, Subject='{subject}'{RESET}")
+                
+                email_ctx = {
+                    "id": email_id,
+                    "subject": subject,
+                    "from": email.get("From", "Unknown sender"),
+                    "date": email.get("Date", "Unknown date"),
+                    "body": email.get("Body", "")[:500] if "Body" in email else "",  # Limit for token count
+                    "similarity": email.get("similarity_score", 0)
+                }
+                email_contexts.append(email_ctx)
+            
+            # Prepare messages for the LLM
+            print(f"{YELLOW}DEBUG: Constructing LLM prompt...{RESET}")
+            system_message = """
+            You are an email assistant that helps users find information in their emails.
+            Given a user's search query and a set of relevant emails, provide a helpful response that:
+            
+            1. Directly answers the user's query based on the email content
+            2. Summarizes the key information from the relevant emails
+            3. Provides specific details that address the search query
+            4. Mentions which emails contain the relevant information
+            
+            Be conversational and helpful. Don't just list the emails - synthesize the information
+            to provide a complete answer to the user's question or search.
+            """
+            
+            user_message = f"""
+            User search query: "{query}"
+            
+            Relevant emails:
+            ```
+            {json.dumps(email_contexts, indent=2)}
+            ```
+            
+            Based on these emails, please provide a helpful response to the user's search query.
+            """
+            
+            # Generate the response using the LLM
+            print(f"{YELLOW}DEBUG: Calling OpenAI API...{RESET}")
+            try:
+                llm_response = self.query_service._call_llm_api(
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ],
+                    temperature=0.3,
+                    max_tokens=800,
+                    json_mode=False
+                )
+                print(f"{GREEN}DEBUG: Successfully received response from LLM{RESET}")
+            except Exception as llm_error:
+                print(f"{RED}DEBUG: Error calling LLM API: {llm_error}{RESET}")
+                llm_response = f"I found {len(results)} emails matching your query, but encountered an error generating a detailed response: {str(llm_error)}"
+            
+            return {
+                "response": llm_response,
+                "emails": results
+            }
+                
+        except Exception as e:
+            logger.error(f"Error in debug LLM search: {e}")
+            print(f"{RED}DEBUG: Error in debug LLM search: {e}{RESET}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "response": f"Error performing LLM search: {str(e)}",
+                "emails": []
+            }
 
 def main():
     """Main entry point for RAGMail."""
     print(f"{BOLD}{CYAN}RAGMail - Email Summary and Search Tool{RESET}")
     print("A lightweight tool to summarize your recent emails and search your inbox.\n")
     
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="RAGMail - Email Summary and Search Tool")
+    parser.add_argument("command", nargs="?", default="", help="Command to run (sync, search, ask, run)")
+    parser.add_argument("--limit", "-l", type=int, default=30, help="Limit for sync operation")
+    parser.add_argument("--query", "-q", type=str, help="Query for search or ask operations")
+    args = parser.parse_args()
+    
     # Initialize the application
     app = SimpleRAGMail()
     
-    # Run the application
-    return app.run()
-
-if __name__ == "__main__":
-    sys.exit(main())
+    # Process commands
+    if args.command.lower() == "sync":
+        print(f"{CYAN}Running sync command with limit: {args.limit}{RESET}")
+        return app.sync_recent_emails(limit=args.limit)
+    elif args.command.lower() == "search" and args.query:
+        results = app.search_emails(args.query)
+        app.display_search_results(results)
+        return 0
+    elif args.command.lower() == "ask" and args.query:
+        results = app.llm_search(args.query)
+        app.display_llm_search_results(results)
+        return 0
+    elif args.command.lower() == "search" and len(sys.argv) > 2:
+        query = " ".join(sys.argv[2:])
+        results = app.search_emails(query)
+        app.display_search_results(results)
+        return 0
+    elif args.command.lower() == "ask" and len(sys.argv) > 2:
+        query = " ".join(sys.argv[2:])
+        results = app.llm_search(query)
+        app.display_llm_search_results(results)
+        return 0
+    else:
+        # Run the normal application
+        return app.run()
