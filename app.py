@@ -181,7 +181,7 @@ class SimpleRAGMail:
             print(f"{RED}Error searching emails: {e}{RESET}")
             return []
     
-    def optimized_llm_search(self, query: str, top_k: int = 5) -> Dict[str, Any]:
+    def llm_search(self, query: str, top_k: int = 5) -> Dict[str, Any]:
         """
         Perform an optimized LLM-powered search that finds relevant emails and
         asks the LLM to analyze and respond to the query based on those emails.
@@ -699,7 +699,7 @@ class SimpleRAGMail:
                         print(f"{YELLOW}Please provide a search query.{RESET}")
                         continue
                     
-                    results = self.optimized_llm_search(query)
+                    results = self.llm_search(query)
                     self.display_llm_search_results(results)
                     continue
                 
