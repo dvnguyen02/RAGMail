@@ -69,7 +69,7 @@ class SimpleRAGMail:
         password = os.getenv("GMAIL_PASSWORD")
         
         if not username or not password:
-            raise ValueError("Gmail credentials not found. Set GMAIL_USERNAME and GMAIL_PASSWORD in .env file.")
+            raise ValueError("Gmail credentials not found. Set your username and password in .env file.")
         
         self.email_connector = GmailConnector(username, password)
         
@@ -183,7 +183,7 @@ class SimpleRAGMail:
     
     def llm_search(self, query: str, top_k: int = 5) -> Dict[str, Any]:
         """
-        Perform an optimized LLM-powered search that finds relevant emails and
+        Perform an LLM-powered search that finds relevant emails and
         asks the LLM to analyze and respond to the query based on those emails.
         
         Args:
@@ -193,7 +193,7 @@ class SimpleRAGMail:
         Returns:
             Dictionary with LLM response and relevant emails
         """
-        logger.info(f"Starting optimized LLM search for: '{query}'")
+        logger.info(f"Starting LLM search for: '{query}'")
         
         # Check if OpenAI API key is configured
         if not self.query_service.client:

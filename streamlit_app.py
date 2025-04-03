@@ -24,11 +24,11 @@ st.set_page_config(
 
 @st.cache_resource
 def get_ragmail_instance():
-    """Create or retrieve a cached instance of SimpleRAGMail."""
+    """Create an instance of SimpleRAGMail."""
     return SimpleRAGMail()
 
 def display_email_list(emails, title="Emails", allow_selection=False):
-    """Display a list of emails in a streamlit-friendly format.
+    """Display a list of emails
     
     Args:
         emails: List of email dictionaries
